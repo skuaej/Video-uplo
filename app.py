@@ -24,22 +24,29 @@ bot = Client(
 
 @app.on_event("startup")
 async def startup():
-    await bot.start()
-    print("🚀 Bot started")
+    try:
+        await bot.start()
+        print("🚀 Bot started")
+    except Exception as e:
+        print("BOT START ERROR:", e)
+        # Don't crash app → prevents restart loop → avoids FLOOD_WAIT
 
 @app.on_event("shutdown")
 async def shutdown():
-    await bot.stop()
+    try:
+        await bot.stop()
+    except:
+        pass
 
 @app.get("/")
 async def root():
     return {"status": "alive"}
 
-# ✅ RANGE-AWARE STREAM (FIXED)
+# ✅ RANGE-AWARE STREAM (STABLE)
 @app.get("/stream/{file_id}")
 async def stream(file_id: str, request: Request):
     try:
-        file = await bot.get_file(file_id).__anext__()   # 👈 FIX HERE
+        file = await bot.get_file(file_id)   # 👈 CORRECT CALL
         tg_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
 
         headers = {}
@@ -82,6 +89,10 @@ async def start_cmd(client, message):
 
 @bot.on_message(filters.video & filters.private)
 async def private_video(client, message):
-    file_id = message.video.file_id
-    link = f"{DOMAIN}/stream/{file_id}"
-    await message.reply_text(f"🎬 Stream Link:\n{link}")
+    try:
+        file_id = message.video.file_id
+        link = f"{DOMAIN}/stream/{file_id}"
+        await message.reply_text(f"🎬 Stream Link:\n{link}")
+    except Exception as e:
+        print("BOT ERROR:", e)
+        await message.reply_text("❌ Failed to generate link")
