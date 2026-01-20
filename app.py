@@ -1,3 +1,4 @@
+import os
 import requests
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -5,16 +6,19 @@ from pyrogram import Client, filters
 
 API_ID = 27479878
 API_HASH = "05f8dc8265d4c5df6376dded1d71c0ff"
-BOT_TOKEN = "8450152940:AAHZQhivM9M5Ww66k7hu0CLQRaB30_EpJWc"
+BOT_TOKEN = os.getenv("BOT_TOKEN")   # 👈 FROM ENV
 DOMAIN = "https://worldwide-beverlie-uhhy5-ae3c42ab.koyeb.app"
+
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN env var not set!")
 
 app = FastAPI()
 
 bot = Client(
-    "bot",
+    name="bot",
     api_id=API_ID,
     api_hash=API_HASH,
-    bot_token=None,     # taken from env
+    bot_token=BOT_TOKEN,
     in_memory=True
 )
 
@@ -31,15 +35,15 @@ async def shutdown():
 async def root():
     return {"status": "alive"}
 
+# RANGE-AWARE STREAM
 @app.get("/stream/{file_id}")
 async def stream(file_id: str, request: Request):
     try:
         file = await bot.get_file(file_id)
-        tg_url = f"https://api.telegram.org/file/bot{bot.bot_token}/{file.file_path}"
+        tg_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
 
         headers = {}
         range_header = request.headers.get("range")
-
         if range_header:
             headers["Range"] = range_header
 
