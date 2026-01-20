@@ -1,84 +1,59 @@
-import asyncio
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
-from pyrogram import Client, filters
-from pyrogram.types import Message
+from flask import Flask, request, Response, jsonify
+import requests
+import base64
+import uuid
 
-API_ID = 27479878
-API_HASH = "05f8dc8265d4c5df6376dded1d71c0ff"
-BOT_TOKEN = "PUT_YOUR_REAL_BOT_TOKEN"
-DOMAIN = "https://worldwide-beverlie-uhhy5-ae3c42ab.koyeb.app"
+BOT_TOKEN = "YOUR_BOT_TOKEN"
+BOT_SECRET = "BOT_SECRET"
+SIA_NUMBER = 1234
 
-app = FastAPI()
+app = Flask(__name__)
 
-bot = Client(
-    "bot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN,
-    workers=5,
-)
+def api_url(method, params=None):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/{method}"
+    if params:
+        url += "?" + "&".join([f"{k}={v}" for k, v in params.items()])
+    return url
 
-@app.on_event("startup")
-async def startup():
-    await bot.start()
-    print("🚀 Bot started")
+def get_file(file_id):
+    r = requests.get(api_url("getFile", {"file_id": file_id}))
+    return r.json()["result"]
 
-@app.on_event("shutdown")
-async def shutdown():
-    await bot.stop()
+def fetch_file(file_path):
+    url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+    r = requests.get(url, stream=True)
+    return r
 
-@app.get("/")
-async def root():
-    return {"status": "alive"}
+@app.route("/endpoint", methods=["POST"])
+def webhook():
+    if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != BOT_SECRET:
+        return "Unauthorized", 403
 
-# STREAM ENDPOINT
-@app.get("/stream/{file_id}")
-async def stream(file_id: str):
+    update = request.json
+    # handle update here
+    return "OK"
+
+@app.route("/", methods=["GET"])
+def download():
+    file = request.args.get("file")
+    mode = request.args.get("mode", "attachment")
+
+    if not file:
+        return jsonify({"ok": False, "error": "missing file"}), 404
+
     try:
-        # Telegram file_id se stream
-        async def generator():
-            async for chunk in bot.stream_media(file_id):
-                yield chunk
+        file_path = base64.b64decode(file).decode()
+    except:
+        return jsonify({"ok": False, "error": "invalid hash"}), 400
 
-        headers = {
-            "Content-Type": "video/mp4",
-            "Accept-Ranges": "bytes"
-        }
+    channel_id = int(file_path.split("/")[0]) // -SIA_NUMBER
+    message_id = int(file_path.split("/")[1]) // SIA_NUMBER
 
-        return StreamingResponse(generator(), headers=headers)
+    # TODO: get message via Telegram API
+    # TODO: extract file_id
+    # TODO: getFile + stream
 
-    except Exception as e:
-        print("STREAM ERROR:", e)
-        raise HTTPException(status_code=404, detail="Not found")
-
-
-# /start command
-@bot.on_message(filters.command("start") & filters.private)
-async def start_cmd(client: Client, message: Message):
-    await message.reply_text(
-        "👋 Send me a video\n"
-        "I will give you a direct stream link"
-    )
-
-
-# VIDEO HANDLER
-@bot.on_message(filters.video & filters.private)
-async def video_handler(client: Client, message: Message):
-    try:
-        file_id = message.video.file_id
-        link = f"{DOMAIN}/stream/{file_id}"
-
-        await message.reply_text(
-            f"🎬 **Your Stream Link:**\n{link}",
-            disable_web_page_preview=False
-        )
-
-    except Exception as e:
-        print("BOT ERROR:", e)
-        await message.reply_text("❌ Failed to generate stream link")
-
+    return "Not implemented", 501
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    app.run(host="0.0.0.0", port=8080)
