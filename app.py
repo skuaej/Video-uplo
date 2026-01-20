@@ -6,7 +6,7 @@ from pyrogram import Client, filters
 
 API_ID = 27479878
 API_HASH = "05f8dc8265d4c5df6376dded1d71c0ff"
-BOT_TOKEN = os.getenv("BOT_TOKEN")   # 👈 FROM ENV
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 DOMAIN = "https://worldwide-beverlie-uhhy5-ae3c42ab.koyeb.app"
 
 if not BOT_TOKEN:
@@ -35,11 +35,11 @@ async def shutdown():
 async def root():
     return {"status": "alive"}
 
-# RANGE-AWARE STREAM
+# ✅ RANGE-AWARE STREAM (FIXED)
 @app.get("/stream/{file_id}")
 async def stream(file_id: str, request: Request):
     try:
-        file = await bot.get_file(file_id)
+        file = await bot.get_file(file_id).__anext__()   # 👈 FIX HERE
         tg_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
 
         headers = {}
