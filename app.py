@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pyrogram import Client, filters
@@ -5,29 +6,26 @@ from pyrogram import Client, filters
 API_ID = 27479878
 API_HASH = "05f8dc8265d4c5df6376dded1d71c0ff"
 BOT_TOKEN = "YAHAN_APNA_BOT_TOKEN"
-DOMAIN = "https://yourapp.koyeb.app"
+DOMAIN = "https://worldwide-beverlie-uhhy5-ae3c42ab.koyeb.app"
 
 app = FastAPI()
 
 user = Client("user", api_id=API_ID, api_hash=API_HASH)
-
-bot = Client(
-    "bot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN
-)
+bot = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 @app.on_event("startup")
 async def startup():
     await user.start()
     await bot.start()
+    asyncio.create_task(bot.idle())
+    print("🚀 Bot + Server started")
 
 @app.on_event("shutdown")
 async def shutdown():
     await user.stop()
     await bot.stop()
 
+# STREAM ENDPOINT
 @app.get("/uploads/myfiless/id/{file_id}.mp4")
 async def stream(file_id: int, request: Request):
     try:
@@ -43,6 +41,7 @@ async def stream(file_id: int, request: Request):
     except:
         raise HTTPException(status_code=404, detail="Not found")
 
+# /start COMMAND
 @bot.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):
     await message.reply_text(
@@ -51,6 +50,7 @@ async def start_cmd(client, message):
         "🔗 I will give you a permanent stream link"
     )
 
+# VIDEO HANDLER
 @bot.on_message(filters.video & filters.private)
 async def private_video(client, message):
     msg = await message.forward("me")
