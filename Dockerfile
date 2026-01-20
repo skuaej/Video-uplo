@@ -1,20 +1,23 @@
-FROM python:3.11-slim
-
-# System deps
-RUN apt-get update && apt-get install -y \
-    gcc \
-    git \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+FROM python:3.10-slim
 
 WORKDIR /app
 
+# System dependencies (safe minimal)
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy app code
+COPY app.py .
 
-EXPOSE 8000
+# Koyeb provides PORT env var
+ENV PORT=8080
+EXPOSE 8080
 
-# 🔥 IMPORTANT FIX: run uvicorn instead of python app.py
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run with gunicorn
+CMD ["sh", "-c", "gunicorn -w 2 -b 0.0.0.0:${PORT} app:app"]
