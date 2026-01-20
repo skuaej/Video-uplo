@@ -1,5 +1,6 @@
 import asyncio
-from fastapi import FastAPI, HTTPException, Request
+import requests
+from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from pyrogram import Client, filters
 
@@ -8,57 +9,61 @@ API_HASH = "05f8dc8265d4c5df6376dded1d71c0ff"
 BOT_TOKEN = "PUT_YOUR_REAL_BOT_TOKEN"
 DOMAIN = "https://worldwide-beverlie-uhhy5-ae3c42ab.koyeb.app"
 
-app = FastAPI()
+BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-user = Client("user", api_id=API_ID, api_hash=API_HASH)
+app = FastAPI()
 bot = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+
+def get_file_path(file_id):
+    r = requests.get(f"{BASE_URL}/getFile?file_id={file_id}").json()
+    return r["result"]["file_path"]
 
 @app.on_event("startup")
 async def startup():
-    await user.start()
     await bot.start()
     asyncio.create_task(bot.idle())
-    print("🚀 Bot + Server started")
+    print("🚀 Bot started")
 
 @app.on_event("shutdown")
 async def shutdown():
-    await user.stop()
     await bot.stop()
 
 @app.get("/")
 async def root():
     return {"status": "alive"}
 
-@app.get("/uploads/myfiless/id/{file_id}.mp4")
-async def stream(file_id: int, request: Request):
-    try:
-        msg = await user.get_messages("me", file_id)
-        stream = await user.stream_media(msg)
+# 🔥 STREAM + DOWNLOAD ENDPOINT
+@app.get("/stream/{file_id}")
+async def stream(file_id: str, request: Request):
+    file_path = get_file_path(file_id)
+    tg_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
 
-        headers = {
-            "Content-Type": "video/mp4",
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    r = requests.get(tg_url, stream=True)
+
+    return StreamingResponse(
+        r.iter_content(chunk_size=1024 * 512),
+        media_type="video/mp4",
+        headers={
+            "Content-Disposition": "inline",
             "Accept-Ranges": "bytes"
         }
+    )
 
-        return StreamingResponse(stream, headers=headers)
-    except Exception as e:
-        print("STREAM ERROR:", e)
-        raise HTTPException(status_code=404, detail="Not found")
-
+# /start
 @bot.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):
     await message.reply_text(
-        "👋 Bot alive!\n\n"
-        "📤 Send me a video\n"
-        "🔗 I will give you a permanent stream link"
+        "👋 Send a video\n"
+        "I will give you a stream + download link"
     )
 
+# VIDEO HANDLER
 @bot.on_message(filters.video & filters.private)
 async def private_video(client, message):
-    try:
-        msg = await message.forward("me")
-        link = f"{DOMAIN}/uploads/myfiless/id/{msg.id}.mp4"
-        await message.reply_text(f"🎬 Stream Link:\n{link}")
-    except Exception as e:
-        print("BOT ERROR:", e)
-        await message.reply_text("❌ Failed to generate link")
+    file_id = message.video.file_id
+    link = f"{DOMAIN}/stream/{file_id}"
+    await message.reply_text(f"🎬 Stream + Download:\n{link}")
