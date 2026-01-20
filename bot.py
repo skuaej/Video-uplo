@@ -1,10 +1,10 @@
 import os
 import asyncio
 import logging
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from quart import Quart, Response, request, stream_with_context
 
-# Enable logging to see activity in Koyeb Console
+# Enable logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -16,21 +16,21 @@ DOMAIN = os.environ.get("DOMAIN", "international-angelia-uhhy5-754bbc99.koyeb.ap
 PORT = int(os.environ.get("PORT", 8080))
 
 app = Quart(__name__)
-# in_memory=True is essential for Koyeb's non-persistent storage
+# in_memory=True is critical for Koyeb
 bot = Client("my_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
 
 @app.route('/')
 async def health():
-    return "OK", 200
+    return "Bot is Online!", 200
 
 @bot.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):
-    logger.info(f"Start command received from {message.from_user.id}")
-    await message.reply_text("👋 Bot is active! Send a video for a link.")
+    logger.info(f"Received /start from {message.from_user.id}")
+    await message.reply_text("✅ **I am working!**\n\nSend me a video to get your streaming link.")
 
 @bot.on_message((filters.video | filters.document) & filters.private)
 async def handle_media(client, message):
-    logger.info(f"Media received from {message.from_user.id}")
+    logger.info(f"Received media from {message.from_user.id}")
     stream_url = f"https://{DOMAIN}/stream/{message.id}?chat={message.chat.id}"
     await message.reply_text(f"🎥 **Stream Link:**\n`{stream_url}`")
 
@@ -44,16 +44,25 @@ async def stream_video(message_id):
             async for chunk in bot.stream_media(msg):
                 yield chunk
         except Exception as e:
-            logger.error(f"Streaming error: {e}")
+            logger.error(f"Stream Error: {e}")
     return Response(generate(), mimetype="video/mp4")
 
 async def main():
-    logger.info("Starting Bot...")
+    # 1. Start the bot
     await bot.start()
-    logger.info("Bot started. Starting Web Server...")
-    # Use idle() to keep the bot listening while Quart runs
-    config = asyncio.create_task(app.run_task(host='0.0.0.0', port=PORT))
-    await asyncio.Event().wait() # Keeps the script running
+    logger.info("--- BOT STARTED ---")
+    
+    # 2. Start the web server as a background task
+    # This allows Koyeb's health checks to pass immediately
+    loop = asyncio.get_event_loop()
+    loop.create_task(app.run_task(host='0.0.0.0', port=PORT))
+    logger.info(f"--- WEB SERVER STARTED ON PORT {PORT} ---")
+    
+    # 3. Keep the bot alive and listening for messages
+    await idle()
+    
+    # 4. Graceful shutdown
+    await bot.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())
