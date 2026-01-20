@@ -1,70 +1,54 @@
-from flask import Flask, request, jsonify
 import os
+from flask import Flask, send_from_directory
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import threading
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-BOT_SECRET = os.environ.get("BOT_SECRET")
-
+# --- Flask Server for Streaming ---
 app = Flask(__name__)
+PORT = int(os.environ.get("PORT", 8080))
+# Koyeb URL will be: https://your-app-name.koyeb.app
+DOMAIN = os.environ.get("DOMAIN", "your-app-name.koyeb.app") 
 
-def api_url(method, params=None):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/{method}"
-    if params:
-        url += "?" + "&".join([f"{k}={v}" for k, v in params.items()])
-    return url
+@app.route('/stream/<filename>')
+def stream_video(filename):
+    # This serves the video file from the 'downloads' folder
+    return send_from_directory('downloads', filename)
 
-def send_message(chat_id, reply_id, text):
-    import requests
-    requests.get(api_url("sendMessage", {
-        "chat_id": chat_id,
-        "reply_to_message_id": reply_id,
-        "text": text
-    }))
+@app.route('/')
+def health_check():
+    return "Bot is running!", 200
 
-@app.route("/endpoint", methods=["POST"])
-def webhook():
-    if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != BOT_SECRET:
-        return "Unauthorized", 403
+# --- Telegram Bot Logic ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Send me a video file, and I'll give you a streaming link!")
 
-    update = request.json
+async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    video = update.message.video
+    file = await context.bot.get_file(video.file_id)
+    
+    # Save the file locally to serve it
+    if not os.path.exists('downloads'):
+        os.makedirs('downloads')
+    
+    file_path = f"downloads/{video.file_id}.mp4"
+    await file.download_to_drive(file_path)
+    
+    streaming_link = f"https://{DOMAIN}/stream/{video.file_id}.mp4"
+    await update.message.reply_text(f"🎥 Your Video Link:\n{streaming_link}")
 
-    if "message" not in update:
-        return "OK"
+def run_flask():
+    app.run(host='0.0.0.0', port=PORT)
 
-    message = update["message"]
-    chat_id = message["chat"]["id"]
-    message_id = message["message_id"]
+if __name__ == '__main__':
+    # Start Flask in a separate thread so it doesn't block the bot
+    threading.Thread(target=run_flask).start()
 
-    if "text" in message and message["text"].startswith("/start "):
-        file_hash = message["text"].split("/start ")[1]
-
-        origin = request.url_root.rstrip("/")
-        final_link = f"{origin}/?file={file_hash}"
-        final_stre = f"{origin}/?file={file_hash}&mode=inline"
-
-        send_message(
-            chat_id,
-            message_id,
-            f"⬇ Download:\n{final_link}\n\n▶ Stream:\n{final_stre}"
-        )
-
-    return "OK"
-
-@app.route("/", methods=["GET"])
-def download():
-    file = request.args.get("file")
-    mode = request.args.get("mode", "attachment")
-
-    if not file:
-        return jsonify({"ok": False, "error": "missing file"}), 404
-
-    # Simple version: just show a message
-    return jsonify({
-        "ok": True,
-        "message": "Streaming is handled by your Worker / CDN logic",
-        "file": file,
-        "mode": mode
-    })
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+    # Start the Telegram Bot
+    token = os.environ.get("BOT_TOKEN")
+    application = ApplicationBuilder().token(token).build()
+    
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.VIDEO, handle_video))
+    
+    application.run_polling()
