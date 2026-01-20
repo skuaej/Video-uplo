@@ -21,7 +21,6 @@ def get_file_path(file_id):
 @app.on_event("startup")
 async def startup():
     await bot.start()
-    asyncio.create_task(bot.idle())
     print("🚀 Bot started")
 
 @app.on_event("shutdown")
@@ -38,10 +37,6 @@ async def stream(file_id: str, request: Request):
     file_path = get_file_path(file_id)
     tg_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
 
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-
     r = requests.get(tg_url, stream=True)
 
     return StreamingResponse(
@@ -53,7 +48,6 @@ async def stream(file_id: str, request: Request):
         }
     )
 
-# /start
 @bot.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):
     await message.reply_text(
@@ -61,7 +55,6 @@ async def start_cmd(client, message):
         "I will give you a stream + download link"
     )
 
-# VIDEO HANDLER
 @bot.on_message(filters.video & filters.private)
 async def private_video(client, message):
     file_id = message.video.file_id
