@@ -1,54 +1,49 @@
 import os
-from flask import Flask, send_from_directory
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import threading
+import asyncio
+from pyrogram import Client, filters
+from quart import Quart, Response, request, stream_with_context
 
-# --- Flask Server for Streaming ---
-app = Flask(__name__)
+# --- Configuration (Set these in Koyeb Env Vars) ---
+API_ID = int(os.environ.get("API_ID", 27479878))
+API_HASH = os.environ.get("API_HASH", "05f8dc8265d4c5df6376dded1d71c0ff")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+DOMAIN = os.environ.get("DOMAIN", "international-angelia-uhhy5-754bbc99.koyeb.app")
 PORT = int(os.environ.get("PORT", 8080))
-# Koyeb URL will be: https://your-app-name.koyeb.app
-DOMAIN = os.environ.get("DOMAIN", "https://international-angelia-uhhy5-754bbc99.koyeb.app") 
 
-@app.route('/stream/<filename>')
-def stream_video(filename):
-    # This serves the video file from the 'downloads' folder
-    return send_from_directory('downloads', filename)
+app = Quart(__name__)
+bot = Client("stream_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 @app.route('/')
-def health_check():
-    return "Bot is running!", 200
+async def health():
+    return "Streaming Bot is Online", 200
 
-# --- Telegram Bot Logic ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Send me a video file, and I'll give you a streaming link!")
+@app.route('/stream/<int:message_id>')
+async def stream_video(message_id):
+    # This gets the video directly from Telegram's servers
+    async def generate():
+        async for chunk in bot.stream_media(str(message_id)):
+            yield chunk
 
-async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    video = update.message.video
-    file = await context.bot.get_file(video.file_id)
-    
-    # Save the file locally to serve it
-    if not os.path.exists('downloads'):
-        os.makedirs('downloads')
-    
-    file_path = f"downloads/{video.file_id}.mp4"
-    await file.download_to_drive(file_path)
-    
-    streaming_link = f"https://{DOMAIN}/stream/{video.file_id}.mp4"
-    await update.message.reply_text(f"🎥 Your Video Link:\n{streaming_link}")
+    return Response(
+        stream_with_context(generate()),
+        mimetype="video/mp4",
+        headers={"Content-Disposition": "inline"} # Tells browser to play, not download
+    )
 
-def run_flask():
-    app.run(host='0.0.0.0', port=PORT)
+@bot.on_message(filters.video | filters.document)
+async def handle_media(client, message):
+    # We use message.id to identify the file
+    stream_url = f"https://{DOMAIN}/stream/{message.id}"
+    await message.reply_text(
+        f"🎥 **Link Generated!**\n\n"
+        f"🔗 `{stream_url}`\n\n"
+        f"⚠️ *Note: On Free Tier, links may time out after 2 minutes.*"
+    )
 
-if __name__ == '__main__':
-    # Start Flask in a separate thread so it doesn't block the bot
-    threading.Thread(target=run_flask).start()
+async def main():
+    await bot.start()
+    # Quart runs the web server that Koyeb needs for health checks
+    await app.run_task(host='0.0.0.0', port=PORT)
 
-    # Start the Telegram Bot
-    token = os.environ.get("BOT_TOKEN")
-    application = ApplicationBuilder().token(token).build()
-    
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.VIDEO, handle_video))
-    
-    application.run_polling()
+if __name__ == "__main__":
+    asyncio.run(main())
