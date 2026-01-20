@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # --- Configuration ---
 API_ID = int(os.environ.get("API_ID", 27479878))
 API_HASH = os.environ.get("API_HASH", "05f8dc8265d4c5df6376dded1d71c0ff")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8450152940:AAGg91ZCnvUB_g-tLSUGri1N4IyXjdyEqRw")
 DOMAIN = os.environ.get("DOMAIN", "international-angelia-uhhy5-754bbc99.koyeb.app")
 PORT = int(os.environ.get("PORT", 8080))
 
