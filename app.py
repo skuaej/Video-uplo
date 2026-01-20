@@ -1,22 +1,23 @@
 import asyncio
 import requests
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pyrogram import Client, filters
 
 API_ID = 27479878
 API_HASH = "05f8dc8265d4c5df6376dded1d71c0ff"
-BOT_TOKEN = "8450152940:AAHZQhivM9M5Ww66k7hu0CLQRaB30_EpJWc"
+BOT_TOKEN = "PUT_YOUR_REAL_BOT_TOKEN"
 DOMAIN = "https://worldwide-beverlie-uhhy5-ae3c42ab.koyeb.app"
 
-BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
-
 app = FastAPI()
-bot = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-def get_file_path(file_id):
-    r = requests.get(f"{BASE_URL}/getFile?file_id={file_id}").json()
-    return r["result"]["file_path"]
+bot = Client(
+    "bot",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    bot_token=BOT_TOKEN,
+    in_memory=True
+)
 
 @app.on_event("startup")
 async def startup():
@@ -31,32 +32,60 @@ async def shutdown():
 async def root():
     return {"status": "alive"}
 
-# 🔥 STREAM + DOWNLOAD ENDPOINT
+# STREAM ENDPOINT (RANGE FIXED)
 @app.get("/stream/{file_id}")
 async def stream(file_id: str, request: Request):
-    file_path = get_file_path(file_id)
-    tg_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+    try:
+        file = await bot.get_file(file_id)
+        tg_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
 
-    r = requests.get(tg_url, stream=True)
+        headers = {}
+        range_header = request.headers.get("range")
 
-    return StreamingResponse(
-        r.iter_content(chunk_size=1024 * 512),
-        media_type="video/mp4",
-        headers={
-            "Content-Disposition": "inline",
+        if range_header:
+            headers["Range"] = range_header
+
+        r = requests.get(tg_url, headers=headers, stream=True)
+
+        resp_headers = {
+            "Content-Type": r.headers.get("Content-Type", "video/mp4"),
             "Accept-Ranges": "bytes"
         }
-    )
 
+        if "Content-Range" in r.headers:
+            resp_headers["Content-Range"] = r.headers["Content-Range"]
+            resp_headers["Content-Length"] = r.headers["Content-Length"]
+            status_code = 206
+        else:
+            resp_headers["Content-Length"] = r.headers.get("Content-Length")
+            status_code = 200
+
+        return StreamingResponse(
+            r.iter_content(chunk_size=1024 * 512),
+            status_code=status_code,
+            headers=resp_headers
+        )
+
+    except Exception as e:
+        print("STREAM ERROR:", e)
+        raise HTTPException(status_code=404, detail="Not found")
+
+# /start
 @bot.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):
     await message.reply_text(
-        "👋 Send a video\n"
-        "I will give you a stream + download link"
+        "👋 Welcome!\n\n"
+        "📤 Send me a video\n"
+        "🔗 I will give you a stream link"
     )
 
+# VIDEO HANDLER
 @bot.on_message(filters.video & filters.private)
 async def private_video(client, message):
-    file_id = message.video.file_id
-    link = f"{DOMAIN}/stream/{file_id}"
-    await message.reply_text(f"🎬 Stream + Download:\n{link}")
+    try:
+        file_id = message.video.file_id
+        link = f"{DOMAIN}/stream/{file_id}"
+        await message.reply_text(f"🎬 Stream Link:\n{link}")
+    except Exception as e:
+        print("BOT ERROR:", e)
+        await message.reply_text("❌ Failed to generate link")
