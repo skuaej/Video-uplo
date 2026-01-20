@@ -6,7 +6,7 @@ from pyrogram import Client, filters
 
 API_ID = 27479878
 API_HASH = "05f8dc8265d4c5df6376dded1d71c0ff"
-BOT_TOKEN = "PUT_YOUR_REAL_BOT_TOKEN"
+BOT_TOKEN = "8450152940:AAHZQhivM9M5Ww66k7hu0CLQRaB30_EpJWc"
 DOMAIN = "https://worldwide-beverlie-uhhy5-ae3c42ab.koyeb.app"
 
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
