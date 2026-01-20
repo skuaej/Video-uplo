@@ -1,4 +1,3 @@
-import asyncio
 import requests
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -6,7 +5,7 @@ from pyrogram import Client, filters
 
 API_ID = 27479878
 API_HASH = "05f8dc8265d4c5df6376dded1d71c0ff"
-BOT_TOKEN = "PUT_YOUR_REAL_BOT_TOKEN"
+BOT_TOKEN = "8450152940:AAHZQhivM9M5Ww66k7hu0CLQRaB30_EpJWc"
 DOMAIN = "https://worldwide-beverlie-uhhy5-ae3c42ab.koyeb.app"
 
 app = FastAPI()
@@ -15,7 +14,7 @@ bot = Client(
     "bot",
     api_id=API_ID,
     api_hash=API_HASH,
-    bot_token=BOT_TOKEN,
+    bot_token=None,     # taken from env
     in_memory=True
 )
 
@@ -32,12 +31,11 @@ async def shutdown():
 async def root():
     return {"status": "alive"}
 
-# STREAM ENDPOINT (RANGE FIXED)
 @app.get("/stream/{file_id}")
 async def stream(file_id: str, request: Request):
     try:
         file = await bot.get_file(file_id)
-        tg_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
+        tg_url = f"https://api.telegram.org/file/bot{bot.bot_token}/{file.file_path}"
 
         headers = {}
         range_header = request.headers.get("range")
@@ -70,7 +68,6 @@ async def stream(file_id: str, request: Request):
         print("STREAM ERROR:", e)
         raise HTTPException(status_code=404, detail="Not found")
 
-# /start
 @bot.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):
     await message.reply_text(
@@ -79,13 +76,8 @@ async def start_cmd(client, message):
         "🔗 I will give you a stream link"
     )
 
-# VIDEO HANDLER
 @bot.on_message(filters.video & filters.private)
 async def private_video(client, message):
-    try:
-        file_id = message.video.file_id
-        link = f"{DOMAIN}/stream/{file_id}"
-        await message.reply_text(f"🎬 Stream Link:\n{link}")
-    except Exception as e:
-        print("BOT ERROR:", e)
-        await message.reply_text("❌ Failed to generate link")
+    file_id = message.video.file_id
+    link = f"{DOMAIN}/stream/{file_id}"
+    await message.reply_text(f"🎬 Stream Link:\n{link}")
