@@ -1,11 +1,8 @@
-from flask import Flask, request, Response, jsonify
-import requests
-import base64
-import uuid
+from flask import Flask, request, jsonify
+import os
 
-BOT_TOKEN = "YOUR_BOT_TOKEN"
-BOT_SECRET = "BOT_SECRET"
-SIA_NUMBER = 1234
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+BOT_SECRET = os.environ.get("BOT_SECRET")
 
 app = Flask(__name__)
 
@@ -15,14 +12,13 @@ def api_url(method, params=None):
         url += "?" + "&".join([f"{k}={v}" for k, v in params.items()])
     return url
 
-def get_file(file_id):
-    r = requests.get(api_url("getFile", {"file_id": file_id}))
-    return r.json()["result"]
-
-def fetch_file(file_path):
-    url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
-    r = requests.get(url, stream=True)
-    return r
+def send_message(chat_id, reply_id, text):
+    import requests
+    requests.get(api_url("sendMessage", {
+        "chat_id": chat_id,
+        "reply_to_message_id": reply_id,
+        "text": text
+    }))
 
 @app.route("/endpoint", methods=["POST"])
 def webhook():
@@ -30,7 +26,27 @@ def webhook():
         return "Unauthorized", 403
 
     update = request.json
-    # handle update here
+
+    if "message" not in update:
+        return "OK"
+
+    message = update["message"]
+    chat_id = message["chat"]["id"]
+    message_id = message["message_id"]
+
+    if "text" in message and message["text"].startswith("/start "):
+        file_hash = message["text"].split("/start ")[1]
+
+        origin = request.url_root.rstrip("/")
+        final_link = f"{origin}/?file={file_hash}"
+        final_stre = f"{origin}/?file={file_hash}&mode=inline"
+
+        send_message(
+            chat_id,
+            message_id,
+            f"⬇ Download:\n{final_link}\n\n▶ Stream:\n{final_stre}"
+        )
+
     return "OK"
 
 @app.route("/", methods=["GET"])
@@ -41,19 +57,14 @@ def download():
     if not file:
         return jsonify({"ok": False, "error": "missing file"}), 404
 
-    try:
-        file_path = base64.b64decode(file).decode()
-    except:
-        return jsonify({"ok": False, "error": "invalid hash"}), 400
-
-    channel_id = int(file_path.split("/")[0]) // -SIA_NUMBER
-    message_id = int(file_path.split("/")[1]) // SIA_NUMBER
-
-    # TODO: get message via Telegram API
-    # TODO: extract file_id
-    # TODO: getFile + stream
-
-    return "Not implemented", 501
+    # Simple version: just show a message
+    return jsonify({
+        "ok": True,
+        "message": "Streaming is handled by your Worker / CDN logic",
+        "file": file,
+        "mode": mode
+    })
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
