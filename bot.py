@@ -1,13 +1,14 @@
 import os
 import asyncio
 import logging
-from pyrogram import Client, filters, types
-from quart import Quart, request, Response, stream_with_context
+from pyrogram import Client, filters, idle
+from quart import Quart, Response, request, stream_with_context
 
+# Enable logging to see activity in Koyeb Console
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Config ---
+# --- Configuration ---
 API_ID = int(os.environ.get("API_ID", 27479878))
 API_HASH = os.environ.get("API_HASH", "05f8dc8265d4c5df6376dded1d71c0ff")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
@@ -15,36 +16,21 @@ DOMAIN = os.environ.get("DOMAIN", "international-angelia-uhhy5-754bbc99.koyeb.ap
 PORT = int(os.environ.get("PORT", 8080))
 
 app = Quart(__name__)
-bot = Client("my_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
-
-@app.before_serving
-async def startup():
-    await bot.start()
-    # Set the Webhook so Telegram knows where to send messages
-    webhook_url = f"https://{DOMAIN}/webhook"
-    await bot.set_webhook(webhook_url)
-    logger.info(f"Webhook set to {webhook_url}")
-
-@app.route('/webhook', methods=['POST'])
-async def telegram_webhook():
-    # Receive update from Telegram
-    data = await request.get_json()
-    update = types.Update.all_from_dict(data)
-    # Manually feed the update to Pyrogram's dispatcher
-    await bot.dispatcher.process_update(update)
-    return "OK", 200
+# Using in_memory=True to prevent session file issues
+bot = Client("stream_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
 
 @app.route('/')
 async def health():
-    return "Bot is Alive!", 200
+    return "OK", 200
 
-# --- Bot Handlers ---
 @bot.on_message(filters.command("start") & filters.private)
-async def start(client, message):
-    await message.reply_text("🚀 **Webhook Mode Active!**\nSend a video for a link.")
+async def start_cmd(client, message):
+    logger.info(f"Start command from {message.from_user.id}")
+    await message.reply_text("👋 **I am Online!**\nSend a video for a streaming link.")
 
 @bot.on_message((filters.video | filters.document) & filters.private)
 async def handle_media(client, message):
+    logger.info(f"Media received from {message.from_user.id}")
     stream_url = f"https://{DOMAIN}/stream/{message.id}?chat={message.chat.id}"
     await message.reply_text(f"🎥 **Stream Link:**\n`{stream_url}`")
 
@@ -61,5 +47,25 @@ async def stream_video(message_id):
             logger.error(f"Stream error: {e}")
     return Response(generate(), mimetype="video/mp4")
 
+async def main():
+    # 1. Start Pyrogram
+    await bot.start()
+    logger.info("Bot started.")
+    
+    # 2. Run the Web Server in the background so it doesn't block the bot
+    # This allows Koyeb health checks to pass
+    loop = asyncio.get_event_loop()
+    loop.create_task(app.run_task(host='0.0.0.0', port=PORT))
+    logger.info(f"Web server started on port {PORT}")
+
+    # 3. Keep the bot alive and listening for updates
+    await idle()
+    
+    # 4. Stop gracefully
+    await bot.stop()
+
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=PORT)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
