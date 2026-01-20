@@ -2,11 +2,10 @@ import asyncio
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pyrogram import Client, filters
-from pyrogram.errors import RPCError
 
 API_ID = 27479878
 API_HASH = "05f8dc8265d4c5df6376dded1d71c0ff"
-BOT_TOKEN = "8450152940:AAHZQhivM9M5Ww66k7hu0CLQRaB30_EpJWc"
+BOT_TOKEN = "PUT_YOUR_REAL_BOT_TOKEN"
 DOMAIN = "https://worldwide-beverlie-uhhy5-ae3c42ab.koyeb.app"
 
 app = FastAPI()
@@ -16,11 +15,13 @@ bot = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 @app.on_event("startup")
 async def startup():
+    # start both clients
     await user.start()
     await bot.start()
 
     # keep bot alive
-    asyncio.create_task(bot.idle())
+    loop = asyncio.get_event_loop()
+    loop.create_task(bot.idle())
 
     print("🚀 Bot + Server started")
 
@@ -33,7 +34,6 @@ async def shutdown():
 async def root():
     return {"status": "alive"}
 
-# STREAM ENDPOINT
 @app.get("/uploads/myfiless/id/{file_id}.mp4")
 async def stream(file_id: int, request: Request):
     try:
@@ -42,8 +42,7 @@ async def stream(file_id: int, request: Request):
 
         headers = {
             "Content-Type": "video/mp4",
-            "Accept-Ranges": "bytes",
-            "Cache-Control": "public, max-age=86400"
+            "Accept-Ranges": "bytes"
         }
 
         return StreamingResponse(stream, headers=headers)
@@ -51,7 +50,6 @@ async def stream(file_id: int, request: Request):
         print("STREAM ERROR:", e)
         raise HTTPException(status_code=404, detail="Not found")
 
-# /start COMMAND
 @bot.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):
     await message.reply_text(
@@ -60,21 +58,12 @@ async def start_cmd(client, message):
         "🔗 I will give you a permanent stream link"
     )
 
-# VIDEO HANDLER
 @bot.on_message(filters.video & filters.private)
 async def private_video(client, message):
     try:
-        # forward to Saved Messages
         msg = await message.forward("me")
-
         link = f"{DOMAIN}/uploads/myfiless/id/{msg.id}.mp4"
-
         await message.reply_text(f"🎬 Stream Link:\n{link}")
-
-    except RPCError as e:
-        print("BOT RPC ERROR:", e)
-        await message.reply_text("❌ Telegram API error")
-
     except Exception as e:
         print("BOT ERROR:", e)
         await message.reply_text("❌ Failed to generate link")
