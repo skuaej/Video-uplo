@@ -8,7 +8,7 @@ import threading
 app = Flask(__name__)
 PORT = int(os.environ.get("PORT", 8080))
 # Koyeb URL will be: https://your-app-name.koyeb.app
-DOMAIN = os.environ.get("DOMAIN", "your-app-name.koyeb.app") 
+DOMAIN = os.environ.get("DOMAIN", "https://international-angelia-uhhy5-754bbc99.koyeb.app") 
 
 @app.route('/stream/<filename>')
 def stream_video(filename):
