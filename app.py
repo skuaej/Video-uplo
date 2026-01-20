@@ -15,7 +15,7 @@ if not BOT_TOKEN:
 app = FastAPI()
 
 bot = Client(
-    name="bot",
+    "bot",
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN,
@@ -29,7 +29,6 @@ async def startup():
         print("🚀 Bot started")
     except Exception as e:
         print("BOT START ERROR:", e)
-        # Don't crash app → prevents restart loop → avoids FLOOD_WAIT
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -42,12 +41,24 @@ async def shutdown():
 async def root():
     return {"status": "alive"}
 
-# ✅ RANGE-AWARE STREAM (STABLE)
+# ✅ RANGE-AWARE STREAM (NO PYROGRAM FILE API)
 @app.get("/stream/{file_id}")
 async def stream(file_id: str, request: Request):
     try:
-        file = await bot.get_file(file_id)   # 👈 CORRECT CALL
-        tg_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
+        # Step 1: Telegram getFile API
+        r = requests.get(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
+            params={"file_id": file_id},
+            timeout=10
+        ).json()
+
+        if not r.get("ok"):
+            raise Exception("getFile failed")
+
+        file_path = r["result"]["file_path"]
+
+        # Step 2: Direct file URL
+        tg_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
 
         headers = {}
         range_header = request.headers.get("range")
