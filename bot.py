@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # --- Config ---
 API_ID = int(os.environ.get("API_ID", 27479878))
 API_HASH = os.environ.get("API_HASH", "05f8dc8265d4c5df6376dded1d71c0ff")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8899757045:AAE19C08QRGCQWfynDhqUmXUzz0CDFDNE5g")
 SESSION_STRING = os.environ.get("SESSION_STRING", None)
 # .rstrip("/") ensures we don't accidentally create double slashes in the URL
 DOMAIN = os.environ.get("DOMAIN", "https://estimated-koala-uhhy5-14868343.koyeb.app").rstrip("/")
