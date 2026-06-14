@@ -12,7 +12,7 @@ API_ID = int(os.environ.get("API_ID", 27479878))
 API_HASH = os.environ.get("API_HASH", "05f8dc8265d4c5df6376dded1d71c0ff")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 SESSION_STRING = os.environ.get("SESSION_STRING", None) # Optional but highly recommended
-DOMAIN = os.environ.get("DOMAIN", "international-angelia-uhhy5-754bbc99.koyeb.app")
+DOMAIN = os.environ.get("DOMAIN", "https://estimated-koala-uhhy5-14868343.koyeb.app/")
 PORT = int(os.environ.get("PORT", 8000))
 
 app = Quart(__name__)
